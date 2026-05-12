@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Website Change Detector{% endblock %}
+
+{% block content %}
+<div class="container py-4 py-lg-5">
+    <section class="hero-panel mb-4">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-8">
+                <span class="eyebrow">Monitoring Web Automatisé</span>
+                <h1 class="display-6 fw-bold mb-3">Website Change Detector</h1>
+                <p class="hero-copy mb-4">
+                    Surveillance continue de <strong>{{ target_url }}</strong> toutes les {{ scan_interval }} minutes,
+                    avec stockage de versions, détection de différences structurelles et alertes email automatiques.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <form action="{{ url_for('scan_now') }}" method="post">
+                        <button class="btn btn-scan" type="submit">Lancer un scan maintenant</button>
+                    </form>
+                    <a class="btn btn-outline-light" href="{{ url_for('api_status') }}" target="_blank" rel="noreferrer">API status</a>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="status-orb">
+                    <div class="status-orb__ring"></div>
+                    <div class="status-orb__content">
+                        <span class="status-label">Etat actuel</span>
+                        <strong>{{ stats.last_scan["status"] if stats.last_scan else "idle" }}</strong>
+                        <small>{{ stats.last_scan["scanned_at"]|datetimeformat if stats.last_scan else "Jamais scanné" }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} border-0 shadow-sm">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="row g-4 mb-4">
+        <div class="col-md-6 col-xl-3">
+            <div class="metric-card">
+                <span class="metric-card__label">Changements détectés</span>
+                <strong class="metric-card__value">{{ stats.total_changes }}</strong>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="metric-card">
+                <span class="metric-card__label">Versions sauvegardées</span>
+                <strong class="metric-card__value">{{ stats.total_versions }}</strong>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="metric-card">
+                <span class="metric-card__label">Dernier scan</span>
+                <strong class="metric-card__value metric-card__value--small">
+                    {{ stats.last_scan["scanned_at"]|datetimeformat if stats.last_scan else "-" }}
+                </strong>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="metric-card">
+                <span class="metric-card__label">Dernier changement</span>
+                <strong class="metric-card__value metric-card__value--small">
+                    {{ stats.last_change["detected_at"]|datetimeformat if stats.last_change else "Aucun" }}
+                </strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="row g-4">
+        <div class="col-xl-8">
+            <div class="panel-card h-100">
+                <div class="panel-card__header">
+                    <div>
+                        <h2>Historique des modifications</h2>
+                        <p>Résumé des changements HTML, textes, assets et structures détectés.</p>
+                    </div>
+                </div>
+
+                {% if recent_changes %}
+                    <div class="change-feed">
+                        {% for change in recent_changes %}
+                            <article class="change-item">
+                                <div class="change-item__top">
+                                    <div>
+                                        <span class="badge bg-primary-subtle text-primary-emphasis">{{ change["change_types"] }}</span>
+                                        <h3>{{ change["detected_at"]|datetimeformat }}</h3>
+                                    </div>
+                                    <button
+                                        class="btn btn-sm btn-outline-primary"
+                                        type="button"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#diffModal"
+                                        data-diff="{{ change['diff_text']|e }}"
+                                        data-summary="{{ change['summary']|e }}"
+                                        data-date="{{ change['detected_at']|datetimeformat }}"
+                                    >
+                                        Voir le diff
+                                    </button>
+                                </div>
+                                <p class="change-summary">{{ change["summary"] }}</p>
+                                <pre class="change-preview">{{ change["diff_text"][:400] }}{% if change["diff_text"]|length > 400 %}...{% endif %}</pre>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <h3>Aucune modification enregistrée</h3>
+                        <p>Le premier scan créera une version initiale, puis chaque changement sera historisé ici.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="panel-card mb-4">
+                <div class="panel-card__header">
+                    <div>
+                        <h2>Etat du site</h2>
+                        <p>Derniers résultats de scans.</p>
+                    </div>
+                </div>
+                <ul class="scan-list">
+                    {% for scan in recent_scans %}
+                        <li class="scan-list__item">
+                            <div>
+                                <strong>{{ scan["scanned_at"]|datetimeformat }}</strong>
+                                <p>{{ scan["message"] }}</p>
+                            </div>
+                            <span class="status-pill status-pill--{{ scan['status'] }}">{{ scan["status"] }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-card__header">
+                    <div>
+                        <h2>Cible surveillée</h2>
+                        <p>Configuration active.</p>
+                    </div>
+                </div>
+                <div class="config-box">
+                    <div class="config-row">
+                        <span>URL</span>
+                        <strong>{{ target_url }}</strong>
+                    </div>
+                    <div class="config-row">
+                        <span>Fréquence</span>
+                        <strong>{{ scan_interval }} min</strong>
+                    </div>
+                    <div class="config-row">
+                        <span>Historique</span>
+                        <strong>SQLite + logs</strong>
+                    </div>
+                    <div class="config-row">
+                        <span>Notification</span>
+                        <strong>Email SMTP Gmail</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="modal fade" id="diffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <div>
+                    <h5 class="modal-title">Détails du changement</h5>
+                    <p class="modal-subtitle mb-0" id="diffModalDate"></p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-semibold" id="diffModalSummary"></p>
+                <pre class="modal-diff" id="diffModalContent"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
