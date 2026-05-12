@@ -30,7 +30,7 @@ jobs:
       FETCH_LINKED_ASSETS: "true"
       IGNORE_SYSTEM_PROXIES: "true"
       RECORD_SCANS_WITHOUT_CHANGES: "false"
-      EMAIL_ON_NO_CHANGE: "true"
+      EMAIL_ON_NO_CHANGE: "false"
       EMAIL_ENABLED: "true"
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
       EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
