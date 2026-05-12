@@ -465,7 +465,7 @@ class ChangeMonitor:
         email_enabled = os.getenv("EMAIL_ENABLED", "true").lower() == "true"
         if not email_enabled:
             self.logger.info("Email notifications are disabled.")
-            return
+            return {"attempted": False, "sent": False, "reason": "EMAIL_ENABLED=false"}
 
         smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
         smtp_port = int(os.getenv("SMTP_PORT", "587"))
@@ -476,7 +476,7 @@ class ChangeMonitor:
 
         if not smtp_user or not smtp_password or not sender or not recipient:
             self.logger.warning("SMTP configuration is incomplete. Email alert skipped.")
-            return
+            return {"attempted": False, "sent": False, "reason": "SMTP configuration incomplete"}
 
         message = MIMEMultipart("alternative")
         message["Subject"] = f"[Website Change Detector] Modification détectée sur {self.target_url}"
@@ -516,6 +516,7 @@ Différences :
             server.sendmail(sender, recipient, message.as_string())
 
         self.logger.info("Email alert sent to %s", recipient)
+        return {"attempted": True, "sent": True, "recipient": recipient}
 
 
     def _send_scan_email(
@@ -528,13 +529,20 @@ Différences :
     ):
         if not change_detected and not self.email_on_no_change:
             self.logger.info("No-change email notifications are disabled.")
-            return
+            return {
+                "attempted": False,
+                "sent": False,
+                "type": "aucun changement",
+                "reason": "EMAIL_ON_NO_CHANGE=false",
+            }
 
         label = "Modification detectee" if change_detected else "Aucun changement detecte"
         date_label = "Date du changement" if change_detected else "Date du scan"
         formatted_summary = f"{label} | {summary}"
         formatted_diff = f"{date_label}: {detected_at}\n{diff_text}"
-        self._send_email_alert(detected_at, formatted_summary, formatted_diff)
+        email_result = self._send_email_alert(detected_at, formatted_summary, formatted_diff)
+        email_result["type"] = "changement" if change_detected else "aucun changement"
+        return email_result
 
     def run_scan(self, trigger="manual"):
         start_time = time.perf_counter()
@@ -559,12 +567,16 @@ Différences :
             if last_version["content_hash"] == current_state["content_hash"]:
                 duration_ms = int((time.perf_counter() - start_time) * 1000)
                 message = "Aucun changement détecté."
-                self._send_scan_email(
+                email_result = self._send_scan_email(
                     datetime.now().isoformat(timespec="seconds"),
                     "Le site surveille n'a subi aucune modification depuis la derniere version.",
                     "Le contenu analyse est identique a la derniere version sauvegardee.",
                     change_detected=False,
                 )
+                print(f"Mail envoye : {'oui' if email_result.get('sent') else 'non'}")
+                print(f"Type : {email_result.get('type', 'inconnu')}")
+                print(f"Destinataire : {email_result.get('recipient', 'non defini')}")
+                print(f"Raison : {email_result.get('reason', 'envoi effectue')}")
                 if self.record_scans_without_changes:
                     self._insert_scan(
                         "success",
@@ -575,6 +587,10 @@ Différences :
                 return {
                     "status": "success",
                     "change_detected": False,
+                    "email_sent": email_result.get("sent", False),
+                    "email_type": email_result.get("type"),
+                    "email_recipient": email_result.get("recipient"),
+                    "email_reason": email_result.get("reason"),
                     "message": message,
                     "version_id": last_version["id"],
                 }
@@ -600,12 +616,16 @@ Différences :
                 diff_text=diff_text,
                 change_types=change_types,
             )
-            self._send_scan_email(
+            email_result = self._send_scan_email(
                 detected_at,
                 summary,
                 diff_text,
                 change_detected=True,
             )
+            print(f"Mail envoye : {'oui' if email_result.get('sent') else 'non'}")
+            print(f"Type : {email_result.get('type', 'inconnu')}")
+            print(f"Destinataire : {email_result.get('recipient', 'non defini')}")
+            print(f"Raison : {email_result.get('reason', 'envoi effectue')}")
 
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             message = "Changement détecté, enregistré et notifié."
@@ -619,6 +639,10 @@ Différences :
             return {
                 "status": "success",
                 "change_detected": True,
+                "email_sent": email_result.get("sent", False),
+                "email_type": email_result.get("type"),
+                "email_recipient": email_result.get("recipient"),
+                "email_reason": email_result.get("reason"),
                 "message": message,
                 "version_id": version_id,
                 "change_id": change_id,
