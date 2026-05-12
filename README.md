@@ -10,6 +10,7 @@ Projet complet de monitoring web pour surveiller `https://www.voyage.benin.bj`, 
 - Comparaison entre la dernière version et la nouvelle version avec `DeepDiff`
 - Historique complet des versions et des changements dans SQLite
 - Alertes email via SMTP Gmail
+- Email de confirmation possible meme quand aucun changement n'est detecte
 - Dashboard Flask moderne avec lancement manuel de scan
 - Logs détaillés dans `logs/website_monitor.log`
 - Configuration centralisée via `.env`
@@ -85,6 +86,7 @@ SMTP_PASSWORD=votre-mot-de-passe-app-gmail
 EMAIL_FROM=votre-adresse@gmail.com
 EMAIL_TO=lordelesly@gmail.com
 IGNORE_SYSTEM_PROXIES=true
+EMAIL_ON_NO_CHANGE=false
 ```
 
 ## Lancement du projet
@@ -168,6 +170,7 @@ Il fonctionne :
 
 - toutes les `5 minutes`
 - à la demande avec `Run workflow`
+- avec `EMAIL_ON_NO_CHANGE=true` pour envoyer aussi un email quand le site n'a pas change
 
 ### 4. Historique et persistance
 
@@ -254,3 +257,4 @@ python app.py
 - Les scans suivants comparent la nouvelle version à la dernière sauvegardée.
 - Si le site change très souvent côté contenu dynamique, il peut être utile d’ajuster la logique de normalisation dans `monitor.py`.
 - En mode GitHub Actions, `RECORD_SCANS_WITHOUT_CHANGES=false` évite de créer un commit toutes les 5 minutes quand rien ne change.
+- Mets `EMAIL_ON_NO_CHANGE=true` si tu veux recevoir aussi un email de routine quand aucun changement n'est detecte.

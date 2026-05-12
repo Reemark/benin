@@ -69,6 +69,9 @@ class ChangeMonitor:
         self.record_scans_without_changes = (
             os.getenv("RECORD_SCANS_WITHOUT_CHANGES", "true").lower() == "true"
         )
+        self.email_on_no_change = (
+            os.getenv("EMAIL_ON_NO_CHANGE", "false").lower() == "true"
+        )
         self.scheduler = None
         self._ensure_database()
 
@@ -514,6 +517,25 @@ Différences :
 
         self.logger.info("Email alert sent to %s", recipient)
 
+
+    def _send_scan_email(
+        self,
+        detected_at: str,
+        summary: str,
+        diff_text: str,
+        *,
+        change_detected: bool,
+    ):
+        if not change_detected and not self.email_on_no_change:
+            self.logger.info("No-change email notifications are disabled.")
+            return
+
+        label = "Modification detectee" if change_detected else "Aucun changement detecte"
+        date_label = "Date du changement" if change_detected else "Date du scan"
+        formatted_summary = f"{label} | {summary}"
+        formatted_diff = f"{date_label}: {detected_at}\n{diff_text}"
+        self._send_email_alert(detected_at, formatted_summary, formatted_diff)
+
     def run_scan(self, trigger="manual"):
         start_time = time.perf_counter()
         self.logger.info("Starting %s scan for %s", trigger, self.target_url)
@@ -537,6 +559,12 @@ Différences :
             if last_version["content_hash"] == current_state["content_hash"]:
                 duration_ms = int((time.perf_counter() - start_time) * 1000)
                 message = "Aucun changement détecté."
+                self._send_scan_email(
+                    datetime.now().isoformat(timespec="seconds"),
+                    "Le site surveille n'a subi aucune modification depuis la derniere version.",
+                    "Le contenu analyse est identique a la derniere version sauvegardee.",
+                    change_detected=False,
+                )
                 if self.record_scans_without_changes:
                     self._insert_scan(
                         "success",
@@ -572,7 +600,12 @@ Différences :
                 diff_text=diff_text,
                 change_types=change_types,
             )
-            self._send_email_alert(detected_at, summary, diff_text)
+            self._send_scan_email(
+                detected_at,
+                summary,
+                diff_text,
+                change_detected=True,
+            )
 
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             message = "Changement détecté, enregistré et notifié."
