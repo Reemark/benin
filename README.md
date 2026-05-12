@@ -23,7 +23,7 @@ Website Change Detector/
 ├── app.py
 ├── monitor.py
 ├── .env.example
-├── .github/workflows/website-monitor.yml
+├── .github/workflows/benin-monitor.yml
 ├── requirements.txt
 ├── README.md
 ├── .env
@@ -164,7 +164,7 @@ SMTP_PASSWORD=votre-mot-de-passe-app-gmail
 
 Le workflow est déjà prêt dans :
 
-`/.github/workflows/website-monitor.yml`
+`/.github/workflows/benin-monitor.yml`
 
 Il fonctionne :
 
